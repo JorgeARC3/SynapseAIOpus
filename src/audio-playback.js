@@ -65,6 +65,16 @@ export class AudioPlayback {
   }
 
   /**
+   * Check if audio is currently playing in the output buffer
+   * This is used to prevent the microphone from un-muting before the model finishes speaking
+   */
+  isStillPlaying() {
+    if (!this.audioContext) return false;
+    // Add 0.5s safety buffer so the mic doesn't instantly pick up the tail of the speaker
+    return this.audioContext.currentTime < (this.nextStartTime + 0.5);
+  }
+
+  /**
    * Flush all queued audio (on interruption)
    */
   flush() {

@@ -137,7 +137,7 @@ ASL interpretation tips:
 - If you truly cannot identify any sign, say only: "No reconocido" (or equivalent in ${targetLanguage})
 - Your response must be ONLY the translated word or phrase, spoken naturally and concisely
 - When translating voice, do NOT translate background noise, music, or echoed audio
-- IMPORTANT: Any text output you generate MUST be wrapped in <TAG> and </TAG> XML blocks. Example: <TAG>Hola</TAG>. NEVER output text outside of these blocks. Do NOT include markdown or your thought process inside the TAG block!`;
+- IMPORTANT: Any text output you generate MUST follow this exact format: "[Source Language] | [Content]". Example: "English | Hola". If the source is ASL, use "ASL | [Content]". NEVER output text outside of this strict format. Do NOT include markdown or your thought process!`;
 }
 
 async function startSession() {
@@ -240,19 +240,19 @@ function setCognitiveMode(mode) {
 
     switch (mode) {
       case 'bridge':
-        modePrompt = `You are now in BRIDGE MODE. Function as a normal voice/ASL translator to ${lang}. Speak the translation concisely. You MUST also output the exact translation as a TEXT response wrapped in <TAG>...</TAG>. CRITICAL: Output ONLY the <TAG> block in text, do NOT output your thought process!`;
+        modePrompt = `You are now in BRIDGE MODE. Function as a normal voice/ASL translator to ${lang}. Speak the translation concisely. You MUST also output a TEXT response with the format: "[Source Language] | [Translation]". Example: "English | Hola". CRITICAL: Output ONLY this exact format in text, do NOT output your thought process!`;
         break;
       case 'emotion':
-        modePrompt = `You are now in EMOTION MODE. Analyze the facial expressions, vocal tone, and words of the speaker. Provide a very concise emotional reading. You MUST output your analysis as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}. Format as: <TAG>Emotion: [Emotion] - [Reason]</TAG>.`;
+        modePrompt = `You are now in EMOTION MODE. Analyze the facial expressions, vocal tone, and words of the speaker. Provide a very concise emotional reading. You MUST output your analysis as a TEXT response with the format: "[Source Language] | Emotion: [Emotion] - [Reason]". Example: "English | Emotion: Happy - Smiling". CRITICAL: Output ONLY this exact format in text.`;
         break;
       case 'social':
-        modePrompt = `You are now in SOCIAL MODE. Analyze body language, eye contact, and conversational dynamics. Provide a very concise social cue alert. You MUST output your analysis as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}. Format as: <TAG>Social Cue: [Observation] - [Advice]</TAG>.`;
+        modePrompt = `You are now in SOCIAL MODE. Analyze body language, eye contact, and conversational dynamics. Provide a very concise social cue alert. You MUST output your analysis as a TEXT response with the format: "[Source Language] | Social Cue: [Observation] - [Advice]". Example: "English | Social Cue: Eye contact lost - Regain attention". CRITICAL: Output ONLY this exact format in text.`;
         break;
       case 'clarity':
-        modePrompt = `You are now in CLARITY MODE. The speaker will talk about complex topics or ramble. You must SIMPLIFY their speech into 2-3 concise bullet points. You MUST output the bullet points as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}.`;
+        modePrompt = `You are now in CLARITY MODE. The speaker will talk about complex topics or ramble. You must SIMPLIFY their speech into 2-3 concise bullet points. You MUST output the bullet points as a TEXT response with the format: "[Source Language] | [Bullet Points]". CRITICAL: Output ONLY this exact format in text.`;
         break;
       case 'context':
-        modePrompt = `You are now in CONTEXT MODE. Act as a conversational memory assistant. If the user asks what was just said, or asks for relevant background context about the current topic, provide it. You MUST output the context as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}.`;
+        modePrompt = `You are now in CONTEXT MODE. Act as a conversational memory assistant. If the user asks what was just said, or asks for relevant background context about the current topic, provide it. You MUST output the context as a TEXT response with the format: "[Source Language] | [Context]". CRITICAL: Output ONLY this exact format in text.`;
         break;
     }
 
@@ -323,11 +323,7 @@ gemini.on('onAudio', (base64Data) => {
   isModelSpeaking = true;
   audioPlayback.playChunk(base64Data);
   
-  // Safety timeout: if we don't receive audio for 2.5s, un-mute the mic
-  clearTimeout(modelSpeakingTimeout);
-  modelSpeakingTimeout = setTimeout(() => {
-    isModelSpeaking = false;
-  }, 2500);
+  // The un-muting logic is now handled in onTurnComplete via isStillPlaying() check
 });
 
 gemini.on('onInputTranscription', (text) => {
@@ -335,8 +331,8 @@ gemini.on('onInputTranscription', (text) => {
 });
 
 gemini.on('onOutputTranscription', (text) => {
-  // Strip XML tags from the transcript view
-  const cleanText = text.replace(/<\/?TAG>/g, '').trim();
+  // Add clean text to the transcript view
+  const cleanText = text.trim();
   if (cleanText) {
     history.addOutputText(cleanText);
   }
@@ -371,28 +367,30 @@ gemini.on('onStatus', (status) => {
 });
 
 gemini.on('onTurnComplete', () => {
-  // Model finished speaking — safe to unmute mic
-  isModelSpeaking = false;
-  clearTimeout(modelSpeakingTimeout);
-
   // Render AR Tags from accumulated text
   if (currentTurnText) {
     let textToDisplay = '';
+    let detectedSourceLanguage = '';
 
-    // 1. Try to extract strictly what is between <TAG> and </TAG>
-    const tagMatch = currentTurnText.match(/<TAG>([\s\S]*?)<\/TAG>/);
-    if (tagMatch) {
-      textToDisplay = tagMatch[1].trim();
+    const trimmed = currentTurnText.trim();
+    
+    // Check if Gemini followed the "[Language] | [Text]" format
+    if (trimmed.includes('|')) {
+      const parts = trimmed.split('|');
+      detectedSourceLanguage = parts[0].trim();
+      textToDisplay = parts.slice(1).join('|').trim();
     } else {
-      // 2. Fallback: ignore if it looks like Gemini's thought process (markdown bold or filler phrases)
-      const trimmed = currentTurnText.trim();
-      const isRambling = trimmed.startsWith('**') || trimmed.includes("I\'ve") || trimmed.includes("I\'m") || trimmed.includes("I will");
-      if (!isRambling && trimmed.length > 0 && trimmed.length < 150) {
-        textToDisplay = trimmed;
-      }
+      textToDisplay = trimmed;
     }
 
-    if (textToDisplay) {
+    // Filter out obvious markdown/rambling if format failed
+    const isRambling = textToDisplay.startsWith('**') || textToDisplay.includes("I\'ve") || textToDisplay.includes("I\'m") || textToDisplay.includes("I will");
+    
+    if (!isRambling && textToDisplay.length > 0 && textToDisplay.length < 200) {
+      if (detectedSourceLanguage) {
+        history.setDetectedLanguage(detectedSourceLanguage);
+      }
+
       // Render the filtered AR Tag
       const tag = document.createElement('div');
       tag.className = 'ar-tag';
@@ -417,6 +415,19 @@ gemini.on('onTurnComplete', () => {
 
     // Reset buffer for the next turn
     currentTurnText = '';
+  }
+
+  // Model finished sending response payload, but audio might still be playing out of speakers!
+  // Wait until the audioPlayback context actually depletes its buffer before unmuting the mic.
+  if (audioPlayback.isStillPlaying()) {
+    const checkInterval = setInterval(() => {
+      if (!audioPlayback.isStillPlaying() || !isSessionActive) {
+        isModelSpeaking = false;
+        clearInterval(checkInterval);
+      }
+    }, 100);
+  } else {
+    isModelSpeaking = false;
   }
 });
 

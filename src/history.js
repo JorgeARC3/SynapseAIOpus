@@ -56,17 +56,26 @@ export class HistoryManager {
         mode: this._currentMode,
         sourceText: input || '...',
         translatedText: output,
+        detectedLanguage: this._detectedLang
       });
     }
 
     this._inputBuffer = '';
     this._outputBuffer = '';
+    this._detectedLang = null;
+  }
+
+  /**
+   * Set detected language for the current streaming utterance
+   */
+  setDetectedLanguage(lang) {
+    this._detectedLang = lang;
   }
 
   /**
    * Add a translation entry
    */
-  addEntry({ mode, sourceText, translatedText, targetLanguage }) {
+  addEntry({ mode, sourceText, translatedText, targetLanguage, detectedLanguage }) {
     // Remove empty state if present
     if (this.entries.length === 0) {
       this.listEl.innerHTML = '';
@@ -78,6 +87,7 @@ export class HistoryManager {
       sourceText,
       translatedText,
       targetLanguage: targetLanguage || this._targetLanguage || '?',
+      detectedLanguage: detectedLanguage,
       timestamp: new Date(),
     };
 
@@ -104,7 +114,12 @@ export class HistoryManager {
     const sourceBadge = entry.mode === 'asl' ? 'source-asl' : 'source-voice';
     const sourceLabel = entry.mode === 'asl' ? '🤟 ASL' : '🎤 Voice';
     const sourceIcon = entry.mode === 'asl' ? '🤟' : '🎤';
-    const detectedLang = entry.mode === 'asl' ? 'ASL' : 'Auto-detected';
+    
+    // Override detected language if specified, else use fallback
+    let detectedLang = entry.detectedLanguage;
+    if (!detectedLang) {
+      detectedLang = entry.mode === 'asl' ? 'ASL' : 'Auto-detected';
+    }
 
     const timeStr = entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
