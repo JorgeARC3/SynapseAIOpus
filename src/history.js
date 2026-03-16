@@ -48,15 +48,26 @@ export class HistoryManager {
    * Force flush the current pending entry
    */
   _flushEntry() {
-    const output = this._outputBuffer.trim();
+    let output = this._outputBuffer.trim();
     const input = this._inputBuffer.trim();
+    let detectedSourceLang = this._detectedLang;
+
+    // 1. Check if Gemini piped the language format into the audio transcript itself
+    if (output.includes('|')) {
+      const parts = output.split('|');
+      detectedSourceLang = parts[0].trim();
+      output = parts.slice(1).join('|').trim();
+    }
+
+    // 2. Aggressively filter out Markdown rambling if Gemini forgot the rules
+    const isRambling = output.startsWith('**') || output.includes("I've begun analyzing") || output.includes("I've reviewed");
     
-    if (output) {
+    if (output && !isRambling) {
       this.addEntry({
         mode: this._currentMode,
         sourceText: input || '...',
         translatedText: output,
-        detectedLanguage: this._detectedLang
+        detectedLanguage: detectedSourceLang
       });
     }
 
