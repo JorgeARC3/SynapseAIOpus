@@ -52,7 +52,7 @@ let isSessionActive = false;
 let currentCognitiveMode = 'bridge'; // 'bridge' | 'emotion' | 'social' | 'clarity' | 'context'
 let currentInputType = 'voice';      // 'voice' | 'asl' (used within bridge mode)
 let isModelSpeaking = false;      // True while Gemini is producing audio (prevents mic feedback loop)
-let modelSpeakingTimeout = null;  // Safety timeout to un-mute mic
+let micFailsafeTimeout = null;    // Absolute ultimate fallback timeout to guarantee mic unlock
 let currentTurnText = '';         // Buffer for streaming text from Gemini
 
 // ============================================
@@ -323,7 +323,12 @@ gemini.on('onAudio', (base64Data) => {
   isModelSpeaking = true;
   audioPlayback.playChunk(base64Data);
   
-  // The un-muting logic is now handled in onTurnComplete via isStillPlaying() check
+  // Failsafe: if the network drops onTurnComplete, force unlock mic after 8s of no chunks
+  clearTimeout(micFailsafeTimeout);
+  micFailsafeTimeout = setTimeout(() => {
+    isModelSpeaking = false;
+    console.log('[App] Failsafe: Mic forcefully unlocked after 8s of no audio chunks');
+  }, 8000);
 });
 
 gemini.on('onInputTranscription', (text) => {
@@ -424,10 +429,19 @@ gemini.on('onTurnComplete', () => {
       if (!audioPlayback.isStillPlaying() || !isSessionActive) {
         isModelSpeaking = false;
         clearInterval(checkInterval);
+        clearTimeout(micFailsafeTimeout);
       }
     }, 100);
+
+    // Fallback for the interval itself
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      isModelSpeaking = false;
+      clearTimeout(micFailsafeTimeout);
+    }, 10000);
   } else {
     isModelSpeaking = false;
+    clearTimeout(micFailsafeTimeout);
   }
 });
 
