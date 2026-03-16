@@ -52,6 +52,7 @@ let isSessionActive = false;
 let currentCognitiveMode = 'bridge'; // 'bridge' | 'emotion' | 'social' | 'clarity' | 'context'
 let currentInputType = 'voice';      // 'voice' | 'asl' (used within bridge mode)
 let isModelSpeaking = false;      // True while Gemini is producing audio (prevents mic feedback loop)
+let currentTurnText = '';         // Buffer for streaming text from Gemini
 
 // ============================================
 // Load saved API key
@@ -135,7 +136,7 @@ ASL interpretation tips:
 - If you truly cannot identify any sign, say only: "No reconocido" (or equivalent in ${targetLanguage})
 - Your response must be ONLY the translated word or phrase, spoken naturally and concisely
 - When translating voice, do NOT translate background noise, music, or echoed audio
-- IMPORTANT: Any text output (part.text) MUST ONLY contain the exact final AR tag content (e.g. the literal translation, emotion, cue). DO NOT include your thought process, markdown formatting, or conversational filler in your text output!`;
+- IMPORTANT: Any text output you generate MUST be wrapped in <TAG> and </TAG> XML blocks. Example: <TAG>Hola</TAG>. NEVER output text outside of these blocks. Do NOT include markdown or your thought process inside the TAG block!`;
 }
 
 async function startSession() {
@@ -238,19 +239,19 @@ function setCognitiveMode(mode) {
 
     switch (mode) {
       case 'bridge':
-        modePrompt = `You are now in BRIDGE MODE. Function as a normal voice/ASL translator to ${lang}. Speak the translation concisely. You MUST also output the exact translation as a TEXT response (part.text) so it appears as an AR HUD Tag. CRITICAL: Output ONLY the translation string in text, do NOT output your thought process or markdown!`;
+        modePrompt = `You are now in BRIDGE MODE. Function as a normal voice/ASL translator to ${lang}. Speak the translation concisely. You MUST also output the exact translation as a TEXT response wrapped in <TAG>...</TAG>. CRITICAL: Output ONLY the <TAG> block in text, do NOT output your thought process!`;
         break;
       case 'emotion':
-        modePrompt = `You are now in EMOTION MODE. Analyze the facial expressions, vocal tone, and words of the speaker. Provide a very concise emotional reading. You MUST output your analysis as a TEXT response (part.text) so it appears as an AR HUD Tag, and optionally speak a 1-sentence summary in ${lang}. Format text strictly as: "Emotion: [Primary Emotion] - [Brief reason]". CRITICAL: Output ONLY this string in text, do NOT output your thought process or markdown!`;
+        modePrompt = `You are now in EMOTION MODE. Analyze the facial expressions, vocal tone, and words of the speaker. Provide a very concise emotional reading. You MUST output your analysis as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}. Format as: <TAG>Emotion: [Emotion] - [Reason]</TAG>.`;
         break;
       case 'social':
-        modePrompt = `You are now in SOCIAL MODE. Analyze body language, eye contact, and conversational dynamics. Provide a very concise social cue alert. You MUST output your analysis as a TEXT response (part.text) so it appears as an AR HUD Tag, and optionally speak a 1-sentence summary in ${lang}. Format text strictly as: "Social Cue: [Observation] - [Advice]". CRITICAL: Output ONLY this string in text, do NOT output your thought process or markdown!`;
+        modePrompt = `You are now in SOCIAL MODE. Analyze body language, eye contact, and conversational dynamics. Provide a very concise social cue alert. You MUST output your analysis as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}. Format as: <TAG>Social Cue: [Observation] - [Advice]</TAG>.`;
         break;
       case 'clarity':
-        modePrompt = `You are now in CLARITY MODE. The speaker will talk about complex topics or ramble. You must SIMPLIFY their speech into 2-3 concise bullet points. You MUST output the bullet points as a TEXT response (part.text) so they appear as AR HUD Tags, and optionally speak a 1-sentence summary in ${lang}. CRITICAL: Output ONLY the bullet points in text, do NOT output your thought process or markdown!`;
+        modePrompt = `You are now in CLARITY MODE. The speaker will talk about complex topics or ramble. You must SIMPLIFY their speech into 2-3 concise bullet points. You MUST output the bullet points as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}.`;
         break;
       case 'context':
-        modePrompt = `You are now in CONTEXT MODE. Act as a conversational memory assistant. If the user asks what was just said, or asks for relevant background context about the current topic, provide it. You MUST output the context as a TEXT response (part.text) so it appears as an AR HUD Tag, and optionally speak a 1-sentence summary in ${lang}. CRITICAL: Output ONLY the context answer in text, do NOT output your thought process or markdown!`;
+        modePrompt = `You are now in CONTEXT MODE. Act as a conversational memory assistant. If the user asks what was just said, or asks for relevant background context about the current topic, provide it. You MUST output the context as a TEXT response wrapped in <TAG>...</TAG>, and optionally speak a 1-sentence summary in ${lang}.`;
         break;
     }
 
@@ -331,26 +332,8 @@ gemini.on('onOutputTranscription', (text) => {
 });
 
 gemini.on('onTextContent', (text) => {
-  // Render AR Tag
-  const tag = document.createElement('div');
-  tag.className = 'ar-tag';
-  tag.textContent = text;
-  
-  arTagsContainer.appendChild(tag);
-
-  // Keep only the last 3 tags
-  while (arTagsContainer.children.length > 3) {
-    arTagsContainer.removeChild(arTagsContainer.firstChild);
-  }
-
-  // Auto-remove after 8 seconds
-  setTimeout(() => {
-    if (tag.parentNode) {
-      tag.style.opacity = '0';
-      tag.style.transition = 'opacity 0.5s ease-out';
-      setTimeout(() => tag.remove(), 500);
-    }
-  }, 8000);
+  // Buffer the text chunk. We draw tags when the turn completes to allow parsing.
+  currentTurnText += text;
 });
 
 gemini.on('onInterrupted', () => {
@@ -379,6 +362,50 @@ gemini.on('onStatus', (status) => {
 gemini.on('onTurnComplete', () => {
   // Model finished speaking — safe to unmute mic
   isModelSpeaking = false;
+
+  // Render AR Tags from accumulated text
+  if (currentTurnText) {
+    let textToDisplay = '';
+
+    // 1. Try to extract strictly what is between <TAG> and </TAG>
+    const tagMatch = currentTurnText.match(/<TAG>([\s\S]*?)<\/TAG>/);
+    if (tagMatch) {
+      textToDisplay = tagMatch[1].trim();
+    } else {
+      // 2. Fallback: ignore if it looks like Gemini's thought process (markdown bold or filler phrases)
+      const trimmed = currentTurnText.trim();
+      const isRambling = trimmed.startsWith('**') || trimmed.includes("I\'ve") || trimmed.includes("I\'m") || trimmed.includes("I will");
+      if (!isRambling && trimmed.length > 0 && trimmed.length < 150) {
+        textToDisplay = trimmed;
+      }
+    }
+
+    if (textToDisplay) {
+      // Render the filtered AR Tag
+      const tag = document.createElement('div');
+      tag.className = 'ar-tag';
+      tag.textContent = textToDisplay;
+
+      arTagsContainer.appendChild(tag);
+
+      // Keep only the last 3 tags
+      while (arTagsContainer.children.length > 3) {
+        arTagsContainer.removeChild(arTagsContainer.firstChild);
+      }
+
+      // Auto-remove after 8 seconds
+      setTimeout(() => {
+        if (tag.parentNode) {
+          tag.style.opacity = '0';
+          tag.style.transition = 'opacity 0.5s ease-out';
+          setTimeout(() => tag.remove(), 500);
+        }
+      }, 8000);
+    }
+
+    // Reset buffer for the next turn
+    currentTurnText = '';
+  }
 });
 
 gemini.on('onError', (error) => {
