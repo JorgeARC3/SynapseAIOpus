@@ -122,15 +122,21 @@ export class HistoryManager {
     el.className = 'history-entry';
     el.dataset.id = entry.id;
 
-    const sourceBadge = entry.mode === 'asl' ? 'source-asl' : 'source-voice';
-    const sourceLabel = entry.mode === 'asl' ? '🤟 ASL' : '🎤 Voice';
-    const sourceIcon = entry.mode === 'asl' ? '🤟' : '🎤';
-    
     // Override detected language if specified, else use fallback
     let detectedLang = entry.detectedLanguage;
     if (!detectedLang) {
       detectedLang = entry.mode === 'asl' ? 'ASL' : 'Auto-detected';
     }
+
+    // If Gemini explicitly detected ASL or we piped it, ensure the styling mode matches
+    let finalMode = entry.mode;
+    if (detectedLang.toUpperCase().includes('ASL') || detectedLang.toUpperCase().includes('SIGN')) {
+      finalMode = 'asl';
+      detectedLang = 'ASL';
+    }
+
+    const sourceBadge = finalMode === 'asl' ? 'source-asl' : 'source-voice';
+    const sourceLabel = finalMode === 'asl' ? '🤟 ASL' : '🎤 Voice';
 
     const timeStr = entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 

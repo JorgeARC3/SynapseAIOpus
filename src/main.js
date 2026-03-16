@@ -137,7 +137,8 @@ ASL interpretation tips:
 - If you truly cannot identify any sign, say only: "No reconocido" (or equivalent in ${targetLanguage})
 - Your response must be ONLY the translated word or phrase, spoken naturally and concisely
 - When translating voice, do NOT translate background noise, music, or echoed audio
-- IMPORTANT: Any text output you generate MUST follow this exact format: "[Source Language] | [Content]". Example: "English | Hola". If the source is ASL, use "ASL | [Content]". NEVER output text outside of this strict format. Do NOT include markdown or your thought process!`;
+- IMPORTANT: You MUST output a TEXT response with the exact format: "[Source Language] | [Content]". Example: "English | Hola" or "ASL | Hola". NEVER output your thought process.
+- CRITICAL: Do NOT speak the source language prefix out loud! Your SPOKEN response must ONLY be the final translation.`;
 }
 
 async function startSession() {
@@ -240,7 +241,7 @@ function setCognitiveMode(mode) {
 
     switch (mode) {
       case 'bridge':
-        modePrompt = `You are now in BRIDGE MODE. Function as a normal voice/ASL translator to ${lang}. Speak the translation concisely. You MUST also output a TEXT response with the format: "[Source Language] | [Translation]". Example: "English | Hola". CRITICAL: Output ONLY this exact format in text, do NOT output your thought process!`;
+        modePrompt = `You are now in BRIDGE MODE. Function as a normal voice/ASL translator to ${lang}. Speak ONLY the translation concisely. You MUST also output a TEXT response with the format: "[Source Language] | [Translation]". Example: "English | Hola". CRITICAL: Output ONLY this exact format in text, and do NOT speak the "[Source Language] |" label out loud!`;
         break;
       case 'emotion':
         modePrompt = `You are now in EMOTION MODE. Analyze the facial expressions, vocal tone, and words of the speaker. Provide a very concise emotional reading. You MUST output your analysis as a TEXT response with the format: "[Source Language] | Emotion: [Emotion] - [Reason]". Example: "English | Emotion: Happy - Smiling". CRITICAL: Output ONLY this exact format in text.`;
