@@ -52,6 +52,7 @@ let isSessionActive = false;
 let currentCognitiveMode = 'bridge'; // 'bridge' | 'emotion' | 'social' | 'clarity' | 'context'
 let currentInputType = 'voice';      // 'voice' | 'asl' (used within bridge mode)
 let isModelSpeaking = false;      // True while Gemini is producing audio (prevents mic feedback loop)
+let modelSpeakingTimeout = null;  // Safety timeout to un-mute mic
 let currentTurnText = '';         // Buffer for streaming text from Gemini
 
 // ============================================
@@ -321,6 +322,12 @@ gemini.on('onAudio', (base64Data) => {
   // Mark that model is speaking (mute mic to prevent feedback)
   isModelSpeaking = true;
   audioPlayback.playChunk(base64Data);
+  
+  // Safety timeout: if we don't receive audio for 2.5s, un-mute the mic
+  clearTimeout(modelSpeakingTimeout);
+  modelSpeakingTimeout = setTimeout(() => {
+    isModelSpeaking = false;
+  }, 2500);
 });
 
 gemini.on('onInputTranscription', (text) => {
@@ -328,7 +335,11 @@ gemini.on('onInputTranscription', (text) => {
 });
 
 gemini.on('onOutputTranscription', (text) => {
-  history.addOutputText(text);
+  // Strip XML tags from the transcript view
+  const cleanText = text.replace(/<\/?TAG>/g, '').trim();
+  if (cleanText) {
+    history.addOutputText(cleanText);
+  }
 });
 
 gemini.on('onTextContent', (text) => {
@@ -362,6 +373,7 @@ gemini.on('onStatus', (status) => {
 gemini.on('onTurnComplete', () => {
   // Model finished speaking — safe to unmute mic
   isModelSpeaking = false;
+  clearTimeout(modelSpeakingTimeout);
 
   // Render AR Tags from accumulated text
   if (currentTurnText) {
@@ -417,7 +429,9 @@ gemini.on('onError', (error) => {
 // ============================================
 audioCapture.onAudioData = (base64Data) => {
   // Don't send mic audio while Gemini is speaking (prevents self-translation)
-  if (isSessionActive && gemini.isConnected && !isModelSpeaking) {
+  // Also don't send audio while we are actively bursting ASL images
+  const isASLActive = signingEngine && signingEngine.state !== SigningEngine.IDLE;
+  if (isSessionActive && gemini.isConnected && !isModelSpeaking && !isASLActive) {
     gemini.sendAudio(base64Data);
   }
 };
