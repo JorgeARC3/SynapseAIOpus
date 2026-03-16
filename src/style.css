@@ -1,0 +1,367 @@
+/* ============================================
+   SYNAPSE AR HUD — Operating System UI
+   ============================================ */
+
+:root {
+  /* AR HUD Colors - High Contrast, Technical */
+  --bg-primary: #000000;
+  --bg-glass: rgba(10, 15, 25, 0.45);
+  --bg-glass-heavy: rgba(0, 5, 15, 0.75);
+  --border-color: rgba(0, 255, 255, 0.2);
+  --border-hover: rgba(0, 255, 255, 0.5);
+  
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-muted: rgba(255, 255, 255, 0.4);
+  
+  --accent-cyan: #00f0ff;
+  --accent-purple: #b537f2;
+  --accent-pink: #ff0055;
+  --accent-green: #39ff14;
+  --accent-red: #ff3333;
+  --accent-orange: #ffaa00;
+  
+  --gradient-primary: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+
+  /* Typography */
+  --font-primary: 'Inter', -apple-system, sans-serif;
+  --font-display: 'Outfit', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spacing */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-round: 100px;
+}
+
+/* Reset & Basics */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Utilities */
+.hidden { display: none !important; }
+.gradient-text {
+  background: var(--gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animations */
+@keyframes HUD-boot {
+  0% { filter: blur(20px) contrast(200%) brightness(0); opacity: 0; }
+  50% { filter: blur(5px) contrast(150%) brightness(2); opacity: 1; }
+  100% { filter: blur(0) contrast(100%) brightness(1); }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; text-shadow: 0 0 10px currentColor; }
+}
+
+/* ============================================
+   LANDING
+   ============================================ */
+.landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 100;
+  background: #050508;
+}
+.landing-content {
+  text-align: center;
+  z-index: 10;
+  max-width: 800px;
+}
+.landing-title { font-family: var(--font-display); font-size: 4rem; font-weight: 800; line-height: 1.1; margin-bottom: 1.5rem; }
+.landing-subtitle { color: var(--text-secondary); font-size: 1.2rem; margin-bottom: 2rem; }
+.landing-features { display: flex; gap: 1rem; justify-content: center; margin-bottom: 3rem; flex-wrap: wrap; }
+.feature-badge { padding: 0.5rem 1rem; border: 1px solid var(--border-color); border-radius: 100px; background: rgba(0,255,255,0.05); color: var(--accent-cyan); font-family: var(--font-mono); font-size: 0.9rem;}
+.btn-primary { 
+  background: rgba(0, 240, 255, 0.1); 
+  border: 1px solid var(--accent-cyan); 
+  color: var(--accent-cyan); 
+  padding: 1rem 2rem; 
+  font-family: var(--font-mono); 
+  text-transform: uppercase; 
+  cursor: pointer; 
+  border-radius: 0; /* Cyberpunk sharp edges */
+  box-shadow: inset 0 0 15px rgba(0,255,255,0.2), 0 0 15px rgba(0,255,255,0.2);
+  transition: all 0.2s;
+}
+.btn-primary:hover { background: var(--accent-cyan); color: #000; box-shadow: 0 0 25px var(--accent-cyan); }
+.orb { position: absolute; filter: blur(80px); border-radius: 50%; z-index: 0; }
+.orb-1 { width: 40Vw; height: 40vw; background: rgba(0, 255, 255, 0.1); top: 10%; right: 10%; }
+.orb-2 { width: 30vw; height: 30vw; background: rgba(181, 55, 242, 0.1); bottom: 10%; left: 10%; }
+
+/* ============================================
+   HUD AR INTERFACE
+   ============================================ */
+.main-app {
+  width: 100%;
+  height: 100vh;
+  position: relative;
+}
+
+/* Layer 0: Camera Background */
+.camera-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #000;
+  overflow: hidden;
+}
+#camera-video, #hand-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Cover entire background */
+  transform: scaleX(-1); /* Mirror */
+  position: absolute;
+  inset: 0;
+}
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.camera-icon { font-size: 4rem; opacity: 0.5; }
+
+/* Layer 1: HUD Interface */
+.hud-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none; /* Let clicks pass through empty space */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  animation: HUD-boot 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Make HUD elements clickable */
+.hud-element { pointer-events: auto; }
+.btn-icon { pointer-events: auto; }
+
+/* Scanline Effect */
+.hud-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 255, 255, 0.03) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Top Header Status */
+.hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+}
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--bg-glass);
+  padding: 1rem;
+  border-left: 2px solid var(--accent-cyan);
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+.logo-sm { font-family: var(--font-mono); font-size: 1.2rem; color: var(--accent-cyan); letter-spacing: 2px; }
+
+/* Status Indicators */
+.status-indicator, .hand-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+.status-dot, .hand-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.status-disconnected .status-text { color: var(--text-muted); }
+.status-disconnected .status-dot { background: var(--text-muted); }
+.status-connecting .status-text { color: var(--accent-orange); }
+.status-connecting .status-dot { background: var(--accent-orange); animation: pulse 1s infinite; }
+.status-connected .status-text { color: var(--accent-green); text-shadow: 0 0 5px var(--accent-green);}
+.status-connected .status-dot { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+
+.hand-status span:last-child { color: var(--text-muted); }
+.hand-status .hand-dot { background: var(--text-muted); }
+.hand-status.active span:last-child { color: var(--accent-cyan); text-shadow: 0 0 5px var(--accent-cyan); }
+.hand-status.active .hand-dot { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); }
+
+/* Settings Overlay */
+.header-right {
+  display: flex;
+  gap: 1rem;
+}
+.settings-group {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--bg-glass);
+  padding: 0.5rem;
+  border-right: 2px solid var(--accent-cyan);
+  backdrop-filter: blur(8px);
+}
+.select-language, .input-api-key {
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--border-color);
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  padding: 0.5rem;
+  font-size: 0.8rem;
+}
+.btn-control {
+  border: 1px solid;
+  padding: 0.5rem 1rem;
+  background: rgba(0,0,0,0.5);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.btn-start { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+.btn-start:hover { background: var(--accent-cyan); color: #000; }
+.btn-stop { color: var(--accent-red); border-color: var(--accent-red); }
+.btn-stop:hover { background: var(--accent-red); color: #000; }
+
+/* Dynamic AR Tags Area */
+.ar-tags-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  gap: 1rem;
+  /* They float in the middle of the screen */
+}
+.ar-tag {
+  background: rgba(0, 0, 0, 0.7);
+  border-left: 3px solid var(--accent-purple);
+  padding: 1rem 1.5rem;
+  font-size: 1.5rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: white;
+  backdrop-filter: blur(4px);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  animation: slide-up 0.3s ease-out;
+  max-width: 80%;
+  text-align: center;
+}
+
+/* History / Transcripts (Bottom Left) */
+.hud-panel {
+  position: absolute;
+  bottom: 6rem;
+  left: 1.5rem;
+  width: 320px;
+  max-height: 250px;
+  background: var(--bg-glass-heavy);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-title { font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); }
+.btn-sm { background: none; border: none; color: var(--text-muted); font-size: 0.7rem; font-family: var(--font-mono); cursor: pointer;}
+.btn-sm:hover { color: var(--accent-red); }
+
+.history-list {
+  padding: 0.8rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-cyan) transparent;
+}
+.history-empty { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); }
+.history-entry { 
+  font-size: 0.95rem; 
+  line-height: 1.4;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--accent-cyan);
+}
+.history-entry-source { font-family: var(--font-mono); font-size: 0.65rem; color: var(--accent-cyan); margin-bottom: 0.2rem; display: flex; align-items: center; gap: 0.4rem; }
+.history-entry-text { color: white; }
+
+/* Bottom Mode Dock */
+.mode-dock {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.dock-container {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--bg-glass-heavy);
+  padding: 0.5rem;
+  border-radius: var(--radius-round);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(15px);
+}
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-round);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.mode-btn:hover { background: rgba(255,255,255,0.05); }
+.mode-btn.active { 
+  background: rgba(0, 240, 255, 0.15); 
+  border-color: var(--accent-cyan); 
+  color: var(--accent-cyan); 
+  box-shadow: 0 0 15px rgba(0,255,255,0.2);
+}
+.mode-icon { font-size: 1.1rem; }
+
+/* Icons / specific buttons */
+.btn-icon { background: none; border: none; color: var(--accent-cyan); cursor: pointer; padding: 0.2rem;}
+.btn-icon:hover { color: white; }

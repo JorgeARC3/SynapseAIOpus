@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Synapse — The Universal Cognitive Bridge AR HUD" />
+  <title>Synapse AR HUD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Using modern fonts for a technical AR look -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
+</head>
+<body>
+  <div id="app">
+    <!-- Landing Section -->
+    <section id="landing" class="landing">
+      <div class="landing-bg"></div>
+      <nav class="landing-nav">
+        <div class="logo">
+          <span class="logo-icon">🧠</span>
+          <span class="logo-text">Synapse</span>
+        </div>
+      </nav>
+      <div class="landing-content">
+        <h1 class="landing-title">
+          <span class="title-line">The Universal</span>
+          <span class="title-line gradient-text">Cognitive Bridge</span>
+        </h1>
+        <p class="landing-subtitle">An AR layer for human communication. Translates spoken language, ASL, emotions, social cues, and complex context in real-time.</p>
+        <div class="landing-features">
+          <div class="feature-badge"><span class="feature-icon">🌉</span> Bridge</div>
+          <div class="feature-badge"><span class="feature-icon">🎭</span> Emotion</div>
+          <div class="feature-badge"><span class="feature-icon">🤝</span> Social</div>
+          <div class="feature-badge"><span class="feature-icon">✨</span> Clarity</div>
+          <div class="feature-badge"><span class="feature-icon">📚</span> Context</div>
+        </div>
+        <button id="btn-get-started" class="btn-primary btn-glow">
+          <span>Boot HUD sequence</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+      <div class="landing-visual">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+      </div>
+    </section>
+
+    <!-- Main AR HUD Section -->
+    <section id="main-app" class="main-app hidden">
+      
+      <!-- LAYER 0: Fullscreen Camera Background -->
+      <div class="camera-layer">
+        <video id="camera-video" autoplay playsinline muted></video>
+        <canvas id="hand-canvas"></canvas>
+        <div id="camera-overlay" class="camera-overlay">
+          <div class="camera-overlay-content">
+            <span class="camera-icon">👁️</span>
+            <p>Awaiting optic activation</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- LAYER 1: HUD Interface Overlay -->
+      <div class="hud-layer">
+        
+        <!-- Top Status Bar -->
+        <header class="hud-header">
+          <div class="header-left">
+            <button id="btn-back" class="btn-icon" title="Power Down">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+            </button>
+            <div class="logo logo-sm">
+              <span class="logo-text">SYNAPSE_OS</span>
+            </div>
+            <div id="connection-status" class="status-indicator status-disconnected">
+              <span class="status-dot"></span>
+              <span class="status-text">OFFLINE</span>
+            </div>
+            <div id="hand-status" class="hand-status">
+              <span class="hand-dot"></span>
+              <span>NO HANDS</span>
+            </div>
+          </div>
+          
+          <div class="header-right">
+            <!-- Settings group overlay -->
+            <div class="settings-group">
+              <select id="target-language" class="select-language hud-element">
+                <option value="Spanish">ESP</option>
+                <option value="English">ENG</option>
+                <option value="French">FRA</option>
+                <option value="German">DEU</option>
+                <option value="Japanese">JPN</option>
+              </select>
+              <input type="password" id="api-key-input" class="input-api-key hud-element" placeholder="API Key" />
+              
+              <button id="btn-start" class="btn-control btn-start hud-element">START</button>
+              <button id="btn-stop" class="btn-control btn-stop hidden hud-element">STOP</button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Dynamic AR Tags (Floating Text overlay) -->
+        <div id="ar-tags-container" class="ar-tags-container">
+          <!-- Text bubbles will be injected here dynamically based on the mode -->
+        </div>
+
+        <!-- History / Subtitles Panel (bottom left) -->
+        <div class="hud-panel history-panel hud-element">
+          <div class="panel-header">
+            <h2 class="panel-title">[ Transcripts ]</h2>
+            <button id="btn-clear-history" class="btn-icon btn-sm">CLEAR</button>
+          </div>
+          <div id="history-list" class="history-list">
+            <!-- Transcripts stream here -->
+            <div class="history-empty">Systems nominal.</div>
+          </div>
+        </div>
+
+        <!-- Bottom Mode Dock -->
+        <div class="mode-dock hud-element">
+          <div class="dock-container">
+            <!-- Modes -->
+            <button class="mode-btn active" data-mode="bridge">
+              <span class="mode-icon">🌉</span>
+              <span class="mode-name">BRIDGE</span>
+            </button>
+            <button class="mode-btn" data-mode="emotion">
+              <span class="mode-icon">🎭</span>
+              <span class="mode-name">EMOTION</span>
+            </button>
+            <button class="mode-btn" data-mode="social">
+              <span class="mode-icon">🤝</span>
+              <span class="mode-name">SOCIAL</span>
+            </button>
+            <button class="mode-btn" data-mode="clarity">
+              <span class="mode-icon">✨</span>
+              <span class="mode-name">CLARITY</span>
+            </button>
+            <button class="mode-btn" data-mode="context">
+              <span class="mode-icon">📚</span>
+              <span class="mode-name">CONTEXT</span>
+            </button>
+          </div>
+        </div>
+
+      </div> <!-- End hud-layer -->
+    </section>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
